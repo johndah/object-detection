@@ -8,6 +8,9 @@ import sys
 
 def main():
     root = Path(__file__).resolve().parents[1]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+
     model_path = root / "yolo_nordic_animals.pt"
     images_dir = root / "nordic_animals"
     out_dir = root / "docs" / "infer_outputs"
@@ -31,10 +34,16 @@ def main():
     for img_path in sample_images:
         print(f"Running inference on {img_path.name}")
         results = model(str(img_path), imgsz=640, conf=0.25)
-        # results[0].plot() returns an annotated image array
+        # Ultralytics returns OpenCV-style BGR arrays for the annotated image,
+        # so convert to RGB before saving to avoid swapped channels.
         annotated = results[0].plot()
 
+        import cv2
         from PIL import Image
+
+        if hasattr(annotated, "shape") and len(annotated.shape) == 3:
+            annotated = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+
         im = Image.fromarray(annotated)
         out_path = out_dir / img_path.name
         im.save(out_path)
@@ -42,6 +51,8 @@ def main():
 
     # Attempt a simple distribution plot using label files under datasets
     try:
+        import matplotlib
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         import collections
         from hey import classes as CLASS_NAMES
