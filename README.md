@@ -1,7 +1,9 @@
 # MRI brain tumor detection
 
 Localizing and classifying brain tumours with bounding boxes on brain MRI data set.
-Documentation and implementation in [mri-detection.ipynb](mri-detection.ipynb)
+Documentation and implementation in [object-detection.ipynb](object-detection.ipynb)
+
+The current Kaggle notebook version connected to this repo is the pushed notebook named [object-detection.ipynb](object-detection.ipynb). The local repo also includes a lighter inference showcase based on the trained `yolo_nordic_animals.pt` checkpoint.
 
 ## Motivation
 Model, data augmentation and loss is inspired by [Ultralytics Yolo5](https://docs.ultralytics.com/yolov5/), which also is evaluated for comparison.
