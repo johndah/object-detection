@@ -1,6 +1,6 @@
 **Inference Showcase**
 
-This folder contains a quick inference showcase using the local `yolo_nordic_animals.pt` model. The checkpoint was trained in the Kaggle workflow and then copied into this repo for a lightweight local validation pass.
+This folder contains a quick inference showcase using the local `yolo_nordic_animals.pt` model. The checkpoint was trained in the Kaggle workflow captured in [object-detection.ipynb](../object-detection.ipynb) and then copied into this repo for a lightweight local validation pass.
 
 The goal is to keep the repo browseable and easy to review without publishing the full Kaggle training notebook yet. The local check focuses on a few sample images from `nordic_animals/`, a simple distribution summary built from the existing labels, and an easy way to inspect predicted boxes on real wildlife images.
 
