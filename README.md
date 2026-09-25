@@ -1,37 +1,21 @@
-# MRI brain tumor detection
+# Nordic animal detection
 
-Localizing and classifying brain tumours with bounding boxes on brain MRI data set.
-Documentation and implementation in [object-detection.ipynb](object-detection.ipynb)
+This repo is using a frozen pretrained YOLO26 model as the baseline for Nordic wildlife detection. The next step is to fine-tune on deer classes and related Nordic animal classes.
 
-The current Kaggle notebook version connected to this repo is the pushed notebook named [object-detection.ipynb](object-detection.ipynb). The local repo also includes a lighter inference showcase based on the trained `yolo_nordic_animals.pt` checkpoint.
+The current model is useful even when it makes imperfect predictions: false positives can still land on the right animal region, which helps us identify what the network already understands before the deer-specific training step, and to get some detections.
 
-## Motivation
-Model, data augmentation and loss is inspired by [Ultralytics Yolo5](https://docs.ultralytics.com/yolov5/), which also is evaluated for comparison.
-By replicating the concepts of the original model, as opposed to exactly reproducing it, the implementation and performance differ. 
+## Current frozen YOLO26 examples
 
-The intention behind this repo, however, is to get an better understanding of the object detection task by implementing a solution from scratch (using PyTorch etc.), why more focus on explainable code and visualizations rather than obtaining the exact same performance.
+![Dog detection](docs/infer_outputs/2025-09-26%20%2011:43:32-dog.jpg)
+![Nordic wildlife detection](docs/infer_outputs/2026-02-15%20%2013:03:08--.png)
+![Late-season wildlife inference](docs/infer_outputs/2026-04-27%20%2001:45:59--.png)
 
-## Local animal-detection showcase
-The repo also contains a lightweight local showcase for the custom YOLO checkpoint `yolo_nordic_animals.pt`, which was trained in the Kaggle workflow on a combined COCO subset and wildlife classes. The quick validation pass is kept here so the project can be reviewed locally without publishing the full Kaggle notebook yet.
+## Nordic animal data starting point
 
-The script in `scripts/infer_showcase.py` runs a few predictions on sample images in `nordic_animals/` and writes annotated outputs plus a label-distribution chart to `docs/infer_outputs/`.
+These are some data distribution, samples and mappings as preparation for the next fine-tuning pass for Nordic-animal detection.
 
-### Example inference images
+![Training samples](docs/training_samples.png)
+![Validation samples](docs/validation_samples.png)
+![Dataset distribution](docs/distribution.png)
+![Wild deer mapping](docs/wild_deer_mapping.png)
 
-![Sample 1](docs/infer_outputs/2025-09-26%20%2011:43:32--.png)
-![Sample 2](docs/infer_outputs/2025-09-27%20%2008:32:10--.png)
-![Sample 3](docs/infer_outputs/2026-02-15%20%2013:03:08--.png)
-
-### Combined dataset distribution
-
-![Distribution plot](docs/infer_outputs/dataset_distribution.png)
-
-This summary is a lightweight view of the current labels available in the repo and will be updated as the full Kaggle preprocessing pipeline is finalized and published.
-
-## Sample Results
-Some samples of predictions with ground truth
-![](sample_predictions.png)
-using confidence threshold that maximizes scores
-![](evaluation_scores.png)
-resulting in prediction vs ground truth distribution summarized in confusion matrix visualization
-![](confusion_matrix.png)
