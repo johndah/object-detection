@@ -1,6 +1,6 @@
 # Nordic animal detection
 
-Summary of [nordic-animal-detection.ipynb](../nordic-animal-detection.ipynb). The notebook also runs on Kaggle: [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/object-detection).
+Summary of [nordic-animal-detection.ipynb](../nordic-animal-detection.ipynb). The notebook also runs on Kaggle: [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/nordic-animal-detection).
 
 ## Goal
 

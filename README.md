@@ -9,7 +9,7 @@ Two object detection projects, each documented as a Kaggle notebook.
 | Test F1 score | 0.83 | 0.88 (own model), 0.89 (YOLOv5) |
 | Summary | [docs/nordic-animal-detection.md](docs/nordic-animal-detection.md) | [docs/mri-detection.md](docs/mri-detection.md) |
 | Notebook | [nordic-animal-detection.ipynb](nordic-animal-detection.ipynb) | [mri-detection.ipynb](mri-detection.ipynb) |
-| Kaggle | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/object-detection) | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/mri-detection) |
+| Kaggle | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/nordic-animal-detection) | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/mri-brain-detection) |
 
 ## Nordic animal detection
 
@@ -19,6 +19,8 @@ Most of the work was in the data: a camera info stripe that would have let the m
 
 ![Predictions on test samples](docs/nordic/test_predictions.jpg)
 
+![Confusion matrix on the test set](docs/nordic/confusion_matrix.png)
+
 Read the full summary in [docs/nordic-animal-detection.md](docs/nordic-animal-detection.md).
 
 ## MRI brain tumor detection
@@ -27,6 +29,8 @@ Localizing and classifying brain tumours with bounding boxes on a brain MRI data
 
 The own model reaches a precision of 0.90 and a recall of 0.85 on the test set. An Ultralytics YOLOv5 model trained on the same data for comparison reaches 0.88 and 0.90.
 
-![Predictions on test samples](docs/mri/test_predictions.jpg)
+![Predictions of the own model on test samples](docs/mri/test_predictions.jpg)
+
+![Confusion matrix of the own model on the test set](docs/mri/confusion_matrix.png)
 
 Read the full summary in [docs/mri-detection.md](docs/mri-detection.md).
