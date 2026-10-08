@@ -23,43 +23,43 @@ COCO and the boar dataset are split by us into 80% train, 10% validation and 10%
 
 **The camera stripe gives away the answer.** The trail cameras stamp a stripe with a logo at the bottom of every image. No other class has it, so a model can learn "stripe means elk, moose or deer" instead of looking at the animal. The bottom 36 px of these images is cropped, or 72 px for cameras with a taller logo. Some rotated training copies keep a tilted sliver of the stripe. Validation and test images end up clean, so that sliver cannot improve the scores.
 
-![The region that is cropped from the trail camera images](nordic/camera_stripe.jpg)
+![The region that is cropped, for each of the two kinds of stripe](nordic/camera_stripe.jpg)
 
-**Samples after the crop.**
+**Training samples.** These are loaded the way the training loads them, with its augmentation: mosaic combines four images into one, and images are flipped, scaled and shifted.
 
-![Training samples](nordic/training_samples.jpg)
+![Training samples with the augmentation used in training](nordic/training_samples.jpg)
 
-**COCO boxes the model cannot see.** Before training, the pretrained YOLO26n was run on our COCO validation and test images. How many labeled animals it finds depends strongly on box size. Of the bird boxes below 16 px it finds 10 of 195. Of those at 96 px and above it finds 52 of 68. This model has already seen all of COCO, so more data would not change that.
+**COCO boxes the model cannot see.** Before training, the pretrained YOLO26n was run on our COCO validation and test images. How many labeled animals it finds depends strongly on box size. Of the bird boxes below 16 px it finds 17 of 220. Of those at 96 px and above it finds 59 of 81. This model has already seen all of COCO, so more data would not change that.
 
 ![Share of labeled boxes the pretrained model finds, by box size](nordic/pretrained_baseline.png)
 
 COCO images with a crowd box (133) or with any box below 32 px (744) are therefore removed. Whole images are removed, not single labels, so that no visible animal is left unlabeled.
 
-**Bird is dropped.** After that pruning only 273 training, 44 validation and 44 test images with birds are left, and a nano model at 640 px would only find large, clearly visible birds. Bird labels are removed (553 boxes), together with the 347 images that only contained birds.
+**Bird is dropped.** After that pruning only 278 training, 41 validation and 42 test images with birds are left, and a nano model at 640 px would only find large, clearly visible birds. Bird labels are removed (553 boxes), together with the 347 images that only contained birds.
 
 ## Training
 
 YOLO26n pretrained on COCO is fine-tuned with all layers trainable, since trail camera images, many of them infrared night shots, look different from COCO photos. Augmentation uses mosaic, horizontal flips, scaling, translation and mild color changes. Training stops early when the validation score has not improved for 15 epochs.
 
-The run stopped after about 90 epochs. The weights from around epoch 75 are kept, where the validation mAP50-95 peaks at about 0.65.
+The run stopped after about 120 epochs. The weights from epoch 104 are kept, where the validation mAP50-95 peaks at 0.676. Towards the end the validation loss levels off while the training loss keeps falling.
 
 ![Training loss, validation loss and validation mAP per epoch](nordic/learning_curve.png)
 
 ## Results
 
-The confidence threshold with the highest F1 score on the validation set is 0.50. On the test set it gives:
+The confidence threshold with the highest F1 score on the validation set is 0.55. On the test set it gives:
 
 | Precision | Recall | F1 score |
 |---|---|---|
-| 0.88 | 0.75 | 0.81 |
+| 0.89 | 0.78 | 0.83 |
 
 ![F1 score over confidence threshold and precision-recall curve](nordic/evaluation_scores.png)
 
 ![Confusion matrix on the test set](nordic/confusion_matrix.png)
 
 * **The wild animals are told apart.** Boar, elk, moose, deer and fox are almost never mistaken for each other.
-* **Cats and dogs get mixed up.** 15 cats are predicted as dogs and 13 dogs as cats. That is acceptable for this use, since both are pets.
-* **Cats and dogs are also missed most often.** 40 of 116 cats and 117 of 317 dogs are not found at all.
+* **Cats and dogs get mixed up.** 17 cats are predicted as dogs and 10 dogs as cats. That is acceptable for this use, since both are pets.
+* **Cats, dogs and boar are missed most often.** 26 of 119 cats, 96 of 312 dogs and 33 of 101 boar are not found at all. Elk, moose, deer and fox are rarely missed.
 
 ![Predictions on test samples](nordic/test_predictions.jpg)
 
