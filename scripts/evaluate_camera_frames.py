@@ -58,8 +58,11 @@ def main():
     model = YOLO(str(arguments.weights))
     label_class_names = (arguments.labels / "classes.txt").read_text().split()
 
-    if label_class_names != [model.names[class_id] for class_id in sorted(model.names)]:
-        raise SystemExit(f"The classes of the labels {label_class_names} differ from the model's {model.names}")
+    # Classes are compared by name, since the class ids differ between models with and without person
+    unknown_class_names = set(label_class_names) - set(model.names.values())
+
+    if unknown_class_names:
+        raise SystemExit(f"The model does not know the label classes {sorted(unknown_class_names)}: {model.names}")
 
     outcomes = Counter()
     outcomes_per_class = Counter()
