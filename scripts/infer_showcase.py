@@ -131,16 +131,22 @@ def plot_boxes(ax, image, boxes, labels, class_names, class_colors, prediction_c
 
             label_text.set_text(class_label + confidence_label)
 
+            # A filled label stays readable on bright pictures. Dark text on the bright class colors
+            red, green, blue, _ = to_rgba(class_color)
+            label_text.set_color('black' if 0.299 * red + 0.587 * green + 0.114 * blue > 0.5 else 'white')
             label_box = label_text.get_bbox_patch()
             label_box.set_edgecolor(class_color)
-            label_box.set_facecolor('none')
+            label_box.set_facecolor(to_rgba(class_color, alpha=0.85))
             label_box.set_linewidth(line_width)
             attach_label_below_box(ax, label_text, x_max, y_max)
         else:
             # Box and label are drawn as one shape: the dashed line runs around both and the fill is unbroken
+            # The label is filled more strongly than the box, so it stays readable
+            red, green, blue, _ = to_rgba(class_color)
+            label_text.set_color('black' if 0.299 * red + 0.587 * green + 0.114 * blue > 0.5 else 'white')
             label_box = label_text.get_bbox_patch()
             label_box.set_edgecolor('none')
-            label_box.set_facecolor('none')
+            label_box.set_facecolor(to_rgba(class_color, alpha=0.85))
             attach_label_above_box(ax, label_text, x_min, y_min)
 
             bounding_box = BoxWithLabel(
