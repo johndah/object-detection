@@ -5,8 +5,8 @@ Two object detection projects, each documented as a Kaggle notebook.
 | | Nordic animal detection | MRI brain tumor detection |
 |---|---|---|
 | Goal | Tell which animal passes a camera on a Raspberry Pi 3 | Understand object detection by building a detector from scratch |
-| Model | YOLO26n, fine-tuned | Own model inspired by YOLOv5, compared with Ultralytics YOLOv5 |
-| Test F1 score | 0.83 | 0.88 (own model), 0.89 (YOLOv5) |
+| Model | YOLO26n, fine-tuned | Own model inspired by and compared with Ultralytics YOLOv5 |
+| Test F1 score | 0.87 | 0.88 (own model), 0.89 (YOLOv5) |
 | Summary | [docs/nordic-animal-detection.md](docs/nordic-animal-detection.md) | [docs/mri-detection.md](docs/mri-detection.md) |
 | Notebook | [nordic-animal-detection.ipynb](nordic-animal-detection.ipynb) | [mri-detection.ipynb](mri-detection.ipynb) |
 | Kaggle | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/nordic-animal-detection) | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/mri-brain-detection) |
@@ -15,9 +15,13 @@ Two object detection projects, each documented as a Kaggle notebook.
 
 A Raspberry Pi 3 with a camera, placed in the Nordic countryside, should tell which animal passes by. The Pi runs the model on its CPU, so the detector has to be the smallest YOLO model, YOLO26n at 640 px. It is fine-tuned to find boar, elk, moose, deer, fox, cat and dog.
 
-Most of the work was in the data: a camera info stripe that would have let the model cheat, a dataset without test images, and bird boxes too small for a nano model to see. On the test set the model reaches a precision of 0.89 and a recall of 0.78. It tells the wild animals apart and sometimes mixes up cats and dogs.
+Most of the work was in the data: a camera info stripe that would have let the model cheat, a dataset without test images, bird boxes too small for a nano model to see, and wildlife photos that only show animals at close range. On our own camera, where animals are small on a lawn, the first model called every animal a dog. Animals cut out with a segmentation model and pasted into empty pictures from that camera fixed most of it: 16 of 18 animals on the camera are now named correctly. On the test set the model reaches a precision of 0.90 and a recall of 0.84.
 
-![Predictions on test samples](docs/nordic/test_predictions.jpg)
+![Augmentation of train data with segmentation pasting](docs/nordic/pasting/how_pasting_works.jpg)
+
+![Predictions on samples of the test set](docs/nordic/test_samples/predictions.jpg)
+
+![Predictions in difficult conditions](docs/nordic/difficult_conditions/predictions.jpg)
 
 ![Confusion matrix on the test set](docs/nordic/confusion_matrix.png)
 
