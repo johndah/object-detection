@@ -33,9 +33,9 @@ Read the full summary in [docs/nordic-animal-detection.md](docs/nordic-animal-de
 
 ## MRI brain tumor detection
 
-Localizing and classifying brain tumours with bounding boxes on a brain MRI data set. The model, data augmentation and loss are written from scratch in PyTorch, inspired by Ultralytics YOLOv5, to get a better understanding of the object detection task. The focus is on explainable code and visualizations more than on matching the original's performance.
+The goal is to understand how an object detector works by building one from scratch in PyTorch. It finds brain tumors on MRI images, draws a box around each one and tells glioma, meningioma and pituitary tumors apart. The model, data augmentation and loss follow the ideas of Ultralytics YOLOv5, and a YOLOv5 model trained on the same data serves as the comparison. The focus is on explainable code and visualizations more than on matching the original's performance.
 
-The own model reaches a precision of 0.90 and a recall of 0.85 on the test set. An Ultralytics YOLOv5 model trained on the same data for comparison reaches 0.88 and 0.90.
+The own model reaches a precision of 0.90 and a recall of 0.85 on the test set, YOLOv5 0.88 and 0.90. Both rarely confuse the tumor types. Their errors are missed tumors and false detections, and glioma is missed most often. The own model only does well in a narrow band of confidence thresholds around 0.5. YOLOv5's higher recall comes with a head start: it begins from COCO weights, while the own model starts from random weights. Neighboring slices of one patient can be in both training and test, so the scores are likely higher than for new patients. The notebook now removes duplicate images, splits by patient group and trains YOLOv5 from scratch at our model's depth and width. Those changes wait for the next Kaggle run.
 
 ![Predictions of the own model on test samples](docs/mri/test_predictions.jpg)
 
