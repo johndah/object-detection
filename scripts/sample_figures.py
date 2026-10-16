@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Draw the sample figures: predictions on chosen test pictures and examples of the pasting.
+"""Draw the sample figures: predictions on chosen test pictures, examples of the pasting, and predictions on pictures
+from our own camera by a pretrained COCO model, the first model, trained before the pasting, and the current one.
 
 The pictures are read from the prepared data in datasets/, which has to be in the state of the seed set in the
 notebook (the notebook run up to just before the pasting of camera pictures). They are copied into
 docs/nordic/test_samples, difficult_conditions and pasting, next to the figures. Boxes and pasting use the notebook's own code.
+The camera pictures, with their labels in a labels folder beside them, only exist locally in nordic_animals. Only their
+figures are written, into docs/nordic/own_camera.
 
 Run: python scripts/sample_figures.py path/to/best.pt
 """
@@ -26,6 +29,7 @@ from ultralytics.utils.ops import xywhn2xyxy
 
 repo_root = Path(__file__).resolve().parents[1]
 dataset_root = repo_root / "datasets"
+camera_root = repo_root / "nordic_animals"
 output_root = repo_root / "docs" / "nordic"
 
 # Test pictures to show predictions on. Training pictures do not belong here, the model has learned them
@@ -55,6 +59,14 @@ picture_titles = {
 brightness_factors = {
     "wildlife_wild_deer6_test_PICT0395_JPG.rf.0ccdd6e85cbd54c8a5bc28e8648e625e.jpg": 0.5,
 }
+# Pictures of animals from our own camera
+camera_animals = [
+    "cropped_animals/twilight_fox_in_a_rural_meadow.png",
+    "cropped_animals/twilight_deer_in_snowy_field.png",
+    "cropped_animals/moose_crossing_a_sunlit_meadow.png",
+]
+# One of the two moose the final model fails on, which it calls a roe deer
+camera_failure = "cropped_animals/dawn_moose_crossing_the_meadow.png"
 # Source picture, its class, target picture, its class, both from the training set, a factor on the usual height
 # of the source species, and the brightness relative to the ground (None draws it as in training). The roe deer
 # source is a fawn, smaller than a grown roe deer
@@ -95,10 +107,11 @@ def find_picture(file_name):
     )
 
 
-def read_labeled_boxes(image_path):
-    """Class ids and pixel boxes (x_min, y_min, x_max, y_max) of a prepared picture."""
+def read_labeled_boxes(image_path, labels_folder=None):
+    """Class ids and pixel boxes (x_min, y_min, x_max, y_max) of a picture, by default a prepared one."""
+    labels_folder = labels_folder or image_path.parents[1] / "labels"
     image = Image.open(image_path)
-    label_rows = [line.split() for line in (image_path.parents[1] / "labels" / f"{image_path.stem}.txt").read_text().splitlines()]
+    label_rows = [line.split() for line in (labels_folder / f"{image_path.stem}.txt").read_text().splitlines()]
     boxes = xywhn2xyxy(np.array([row[1:] for row in label_rows], dtype=float).reshape(-1, 4), w=image.width, h=image.height)
 
     return [int(row[0]) for row in label_rows], boxes
@@ -133,6 +146,51 @@ def draw_predictions(notebook_names, model, file_names, columns, title, figure_p
             ax.set_title(picture_titles[file_name])
 
         notebook_names["add_picture_legend"](ax)
+
+    fig.suptitle(title, fontsize=14)
+    fig.tight_layout()
+    fig.savefig(figure_path, dpi=110)
+    plt.close(fig)
+    print(f"Saved {figure_path}")
+
+
+def draw_before_and_after(notebook_names, model_rows, image_paths, title, figure_path, confidence, picture_titles=()):
+    """One row of predictions per model and one column per picture."""
+    plot_boxes = notebook_names["plot_boxes"]
+    our_classes, our_colors = notebook_names["CLASSES"], notebook_names["class_colors"]
+    fig, axes = plt.subplots(
+        len(model_rows), len(image_paths), figsize=(4.2 * len(image_paths), 4.4 * len(model_rows)), squeeze=False
+    )
+
+    for row_axes, (row_title, model) in zip(axes, model_rows):
+        for ax, image_path, picture_title in zip(row_axes, image_paths, picture_titles or [None] * len(image_paths)):
+            image = Image.open(image_path).convert("RGB")
+            class_ids, boxes = read_labeled_boxes(image_path, image_path.parent / "labels")
+            prediction = model.predict(image, imgsz=640, conf=confidence, verbose=False)[0]
+            predicted_names = [model.names[int(class_id)] for class_id in prediction.boxes.cls.cpu().numpy()]
+
+            # plot_boxes knows only our classes. Other classes of the model, like horse in COCO, are added in grey
+            extra_classes = [name for name in dict.fromkeys(predicted_names) if name not in our_classes]
+            notebook_names["CLASSES"] = our_classes + extra_classes
+            notebook_names["class_colors"] = np.vstack([our_colors] + [(0.6, 0.6, 0.6, 1.0)] * len(extra_classes))
+
+            plot_boxes(ax, image, boxes, class_ids)
+            plot_boxes(
+                ax,
+                image,
+                prediction.boxes.xyxy.cpu().numpy(),
+                [notebook_names["CLASSES"].index(name) for name in predicted_names],
+                prediction.boxes.conf.cpu().numpy(),
+            )
+            notebook_names["add_picture_legend"](ax)
+
+            notebook_names["CLASSES"], notebook_names["class_colors"] = our_classes, our_colors
+
+            if picture_title:
+                ax.set_title(picture_title)
+
+        if len(model_rows) > 1:
+            row_axes[0].set_ylabel(row_title, fontsize=13)
 
     fig.suptitle(title, fontsize=14)
     fig.tight_layout()
@@ -236,6 +294,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("weights", type=Path, nargs="?", default=repo_root / "animals_v8.pt")
     parser.add_argument("--confidence", type=float, default=0.40)
+    parser.add_argument("--first-weights", type=Path, default=repo_root / "yolo26n_nordic_animals.pt")
+    parser.add_argument("--pretrained-weights", type=Path, default=repo_root / "yolo26n.pt")
     arguments = parser.parse_args()
 
     cell_sources = read_cell_sources()
@@ -286,6 +346,38 @@ def main():
         output_root / "difficult_conditions" / "predictions.jpg", arguments.confidence,
     )
     draw_pasting(notebook_names, cell_sources, output_root / "pasting" / "how_pasting_works.jpg")
+
+    # Our camera pictures are private and only exist locally, so their figure is kept when the pictures are missing
+    if camera_root.is_dir():
+        model_rows = [
+            ("Pretrained on COCO", YOLO(str(arguments.pretrained_weights))),
+            ("Before pasting augmentation", YOLO(str(arguments.first_weights))),
+            ("After pasting augmentation", model),
+        ]
+        (output_root / "own_camera").mkdir(exist_ok=True)
+        animal_paths = [camera_root / name for name in camera_animals]
+        draw_before_and_after(
+            notebook_names, model_rows, animal_paths,
+            "Predictions on animals from our own camera, before and after the segmentation pasting augmentation",
+            output_root / "own_camera" / "animals.jpg", arguments.confidence,
+        )
+
+        # One row at a time for the summary page, where each model has its own section
+        for model_row, image_paths, picture_titles, file_name, title in zip(
+            model_rows,
+            [animal_paths, animal_paths, animal_paths + [camera_root / camera_failure]],
+            [(), (), [None] * len(animal_paths) + ["Fail case 1 of 2: moose named roe deer"]],
+            ["pretrained.jpg", "before_pasting.jpg", "after_pasting.jpg"],
+            [
+                "Downloaded pretrained YOLO26n as it is, on animals from our own camera",
+                "First model, trained before the pasting augmentation, on animals from our own camera",
+                "Model trained with the pasting augmentation on animals from our own camera",
+            ],
+        ):
+            draw_before_and_after(
+                notebook_names, [model_row], image_paths, title, output_root / "own_camera" / file_name,
+                arguments.confidence, picture_titles,
+            )
 
 
 if __name__ == "__main__":

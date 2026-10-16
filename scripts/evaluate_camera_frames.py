@@ -3,7 +3,8 @@
 
 The frames in nordic_animals/animals are never used for training. Each has a label file in
 nordic_animals/labels with at most one box. An empty label file means the frame shows an animal
-that is none of our classes, where the right answer is no detection.
+that is none of our classes, where the right answer is no detection. With --empty-frames, frames of a
+folder without any animal are also counted where the model detects an animal.
 
 Run: python scripts/evaluate_camera_frames.py path/to/best.pt
 """
@@ -16,6 +17,8 @@ from ultralytics import YOLO
 
 repo_root = Path(__file__).resolve().parents[1]
 min_iou = 0.3
+# A model pretrained on COCO also finds people, cars and benches, which are no false animals
+coco_animal_names = {"bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"}
 
 
 def intersection_over_union(first, second):
@@ -53,6 +56,7 @@ def main():
     parser.add_argument("--image-size", type=int, default=640)
     parser.add_argument("--frames", type=Path, default=repo_root / "nordic_animals" / "animals")
     parser.add_argument("--labels", type=Path, default=repo_root / "nordic_animals" / "labels")
+    parser.add_argument("--empty-frames", type=Path, help="Folder of frames without any animal")
     arguments = parser.parse_args()
 
     model = YOLO(str(arguments.weights))
@@ -61,8 +65,9 @@ def main():
     # Classes are compared by name, since the class ids differ between models with and without person
     unknown_class_names = set(label_class_names) - set(model.names.values())
 
+    # A model without our classes, like one pretrained on COCO, can still find the animal but never name it
     if unknown_class_names:
-        raise SystemExit(f"The model does not know the label classes {sorted(unknown_class_names)}: {model.names}")
+        print(f"The model does not know the label classes {sorted(unknown_class_names)}")
 
     outcomes = Counter()
     outcomes_per_class = Counter()
@@ -114,6 +119,17 @@ def main():
 
     n_other = outcomes["other animal: correctly nothing"] + outcomes["other animal: false detection"]
     print(f"Other animals: no detection on {outcomes['other animal: correctly nothing']} of {n_other} frames")
+
+    if arguments.empty_frames:
+        animal_names = set(label_class_names) | coco_animal_names
+        empty_frame_paths = sorted(arguments.empty_frames.glob("*.jpg"))
+        n_with_animal = 0
+
+        for frame_path in empty_frame_paths:
+            result = model.predict(str(frame_path), imgsz=arguments.image_size, conf=arguments.confidence, verbose=False)[0]
+            n_with_animal += any(model.names[int(class_id)] in animal_names for class_id in result.boxes.cls)
+
+        print(f"Empty frames: an animal detected on {n_with_animal} of {len(empty_frame_paths)} frames")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ Two object detection projects, each documented as a Kaggle notebook.
 
 A Raspberry Pi 3 with a camera, placed in the Nordic countryside, should tell which animal passes by. The Pi runs the model on its CPU, so the detector has to be the smallest YOLO model, YOLO26n at 640 px. It is fine-tuned to find boar, elk, moose, deer, fox, cat and dog.
 
-Most of the work was in the data: a camera info stripe that would have let the model cheat, a dataset without test images, bird boxes too small for a nano model to see, and wildlife photos that only show animals at close range. On our own camera, where animals are small on a lawn, the first model called every animal a dog. Animals cut out with a segmentation model and pasted into empty pictures from that camera fixed most of it: 16 of 18 animals on the camera are now named correctly. On the test set the model reaches a precision of 0.90 and a recall of 0.84.
+A pretrained YOLO26n, used as it comes, already finds 13 of 18 animals on our own camera but names none of them: moose become horses, roe deer and foxes dogs. Fine-tuning on wildlife datasets first took work on the data: a camera info stripe that would have let the model cheat, a dataset without test images and bird boxes too small for a nano model to see. The first model then scored well on its test set, yet on our camera it called every animal a dog. The wildlife photos only show animals at close range, while our camera sees them small on a lawn. Animals cut out with a segmentation model and pasted into empty pictures from that camera, together with more daylight data, fixed most of it: 16 of 18 animals on the camera are now named correctly. On the test set the model reaches a precision of 0.90 and a recall of 0.84.
 
 ![Augmentation of train data with segmentation pasting](docs/nordic/pasting/how_pasting_works.jpg)
 
@@ -24,6 +24,10 @@ Most of the work was in the data: a camera info stripe that would have let the m
 ![Predictions in difficult conditions](docs/nordic/difficult_conditions/predictions.jpg)
 
 ![Confusion matrix on the test set](docs/nordic/confusion_matrix.png)
+
+As a final test on real footage, the pretrained model, the first model and the final one run on pictures from our own camera.
+
+![Predictions on animals from our own camera, before and after the segmentation pasting augmentation](docs/nordic/own_camera/animals.jpg)
 
 Read the full summary in [docs/nordic-animal-detection.md](docs/nordic-animal-detection.md).
 
