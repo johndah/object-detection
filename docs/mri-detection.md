@@ -6,17 +6,17 @@ Summary of [mri-detection.ipynb](../mri-detection.ipynb). The notebook also runs
 
 The goal is to understand how an object detector works by building one from scratch in PyTorch, and to see how close it comes to an established detector trained on the same data.
 
-* **The task.** Find brain tumors on MRI images, draw a box around each one and tell which of three types it is: glioma, meningioma or pituitary.
-* **The approach.** The model, data augmentation and loss follow the ideas of [Ultralytics YOLOv5](https://docs.ultralytics.com/yolov5/). They are written again from its building blocks, not copied, so implementation and performance differ. Explainable code and visualizations come before matching the original's scores.
-* **The comparison.** An Ultralytics YOLOv5 model (`yolov5mu`) is trained and evaluated on the same split.
+* **The toy problem.** Brain tumors on MRI images are the problem to learn on: find each tumor, draw a box around it and tell which of three types it is, glioma, meningioma or pituitary.
+* **The approach.** The model, data augmentation and loss are inspired by [Ultralytics YOLOv5](https://docs.ultralytics.com/yolov5/). They are written from scratch from its building blocks, so implementation and performance differ. Explainable code and visualizations come before matching the original's scores.
+* **The comparison.** An Ultralytics YOLOv5 model is trained from scratch on the same split, scaled to the depth and width of our model.
 
 ## Data
 
 The data set is [MRI for brain tumor with bounding boxes](https://www.kaggle.com/datasets/ahmedsorour1/mri-for-brain-tumor-with-bounding-boxes) with the tumor classes glioma, meningioma and pituitary, plus images without a tumor, which the notebook calls Background.
 
-![Number of images per class in the data set's training folder](mri/class_distribution.png)
+**Copies are removed.** The data set combines source collections that overlap, so about a quarter of its images are identical copies of another image. Only one of each is kept.
 
-For the run on this page, the data set's own training and validation folders were merged and split again, image by image, into 3674 training, 787 validation and 788 test images. The notebook now splits by group instead, see [Changes for the next run](#changes-for-the-next-run).
+**The split keeps a patient in one set.** Neighboring slices of one patient's scan look alike, and the data set has no patient ids. Images are therefore grouped by similarity, and whole groups are split into training, validation and test sets.
 
 A dataset class loads the images and boxes and resizes them to 256 px. For the training set it also augments: every training image is a mosaic of four images, which are flipped, scaled, shifted and changed in color.
 
@@ -24,69 +24,108 @@ A dataset class loads the images and boxes and resizes them to 256 px. For the t
 
 ## Model and training
 
-* **Anchors.** Nine anchor box sizes, three per scale, are found with k-means clustering of the boxes in the validation set.
+* **Anchors.** Nine anchor box sizes, three per scale, are found with k-means clustering of the boxes in the validation set, the Background boxes included.
 * **Model.** Written from the building blocks of YOLOv5: a CSP-Darknet backbone, a path aggregation network and a detection head on three scales, with 15.8 million parameters. It starts from random weights.
-* **Loss.** The loss adds a box loss (complete IoU), an objectness loss and a class loss. The objectness target of a box is how well the predicted box overlaps the true one.
+* **Predictions.** The head looks at the image as three grids, 32, 16 and 8 cells across. In every cell, each of the three anchors of that grid predicts a box, an objectness score and class scores, about 4000 predictions per image.
+* **Loss.** The loss has three parts. The box loss (complete IoU) measures how well a predicted box covers its target. The class loss (cross-entropy) measures whether the predicted class is right. The objectness loss trains a score for every anchor in every grid cell that says whether a target is there. For an anchor assigned to a target, the score is trained toward the complete IoU of its predicted box with the target, never below zero, and for all other anchors toward zero, with binary cross-entropy. The objectness loss is weighted per scale.
 * **Prediction.** A box is kept when its objectness is above the confidence threshold. Overlapping boxes are then removed with non-maximum suppression at an IoU of 0.4, across all classes.
-* **Optimizer.** SGD with a one-cycle learning rate schedule: the rate rises for 3 epochs to a peak of 0.04, falls back over the next 3 and then anneals along a cosine curve for the remaining epochs.
-* **Stopping.** Training stops early when the validation loss has not improved for 10 epochs. The best model is from epoch 175, and training stopped 11 epochs later, short of the 200 allowed.
+* **Optimizer.** SGD with momentum and a one-cycle learning rate schedule: the rate rises for 3 epochs to its peak, falls back over the next 3 and then anneals along a cosine curve for the remaining epochs. I chose SGD because, with a carefully chosen learning rate, it is often reported to reach better results than adaptive optimizers such as Adam, at the price of being sensitive to that rate.
+* **Stopping.** Training stops early when the validation loss has not improved for 10 epochs.
 
-![Training and validation loss per epoch](mri/learning_curve.png)
+## Results: our model against Ultralytics YOLOv5
 
-The validation loss falls from 0.207 to 0.110 by epoch 63, and only to 0.101 by epoch 175. It lies below the training loss for the whole run. The two are not directly comparable: training images are mosaics of four augmented images, while validation images are not augmented.
+Both models are trained from random weights on the same split and evaluated with the same code. YOLOv5 is built from the Ultralytics model definition, scaled to the depth and width of our model, which makes its backbone and neck identical to ours, and trained with the same image size, batch size, number of epochs and patience, otherwise with Ultralytics' own settings. For each model the confidence threshold with the highest F1 score on the validation set is used on the test set. A detection counts as correct when its box overlaps a true box with an IoU of at least 0.4 and has the right class.
 
-## Results
+Precision is the share of a model's detections that are correct, and recall the share of true tumors it finds. The F1 score combines the two and is only high when both are:
 
-For each model the confidence threshold with the highest F1 score on the validation set is chosen, and the model is evaluated on the test set with it. A detection counts as correct when its box overlaps a true tumor box with an IoU of at least 0.4 and has the right class. Precision and recall count the three tumor classes only.
+```math
+\text{precision} = \frac{TP}{TP + FP} \qquad \text{recall} = \frac{TP}{TP + FN} \qquad F_1 = \frac{2 \cdot \text{precision} \cdot \text{recall}}{\text{precision} + \text{recall}}
+```
 
-| Model | Parameters | Starting weights | Confidence threshold | Precision | Recall | F1 score |
-|---|---|---|---|---|---|---|
-| Own model | 15.8 million | random | 0.50 | 0.90 | 0.85 | 0.88 |
-| Ultralytics YOLOv5 (`yolov5mu`) | 25.1 million | pretrained on COCO | 0.30 | 0.88 | 0.90 | 0.89 |
+$TP$ counts tumors found with the right class, $FP$ detections that match no tumor or give it the wrong class, and $FN$ tumors that are missed. A higher confidence threshold removes uncertain detections, so precision usually rises and recall falls, as the F1 curves below show for both models.
 
-### Own model
+| | Own model | Ultralytics YOLOv5 |
+|---|---|---|
+| Backbone and neck | CSP-Darknet and path aggregation network, depth 0.33, width 0.75 | identical |
+| Detection head | one convolution per scale, 3 anchors, box, objectness and class per anchor | separate box and class branches, no anchors, no objectness |
+| Assigning targets to predictions | own cell plus up to two neighbors, anchors of similar shape, all scales | task-aligned assigner |
+| Box loss | complete IoU | complete IoU plus distribution focal loss |
+| Confidence | objectness | class score |
+| Non-maximum suppression | IoU 0.4, across classes | IoU 0.7, per class |
+| Optimizer | SGD, one-cycle schedule | AdamW with a linearly falling learning rate, chosen automatically by Ultralytics for short runs |
+| Augmentation | mosaic, flips, scaling, shifting and color changes | Ultralytics' own: mosaic, flips, scaling, shifting and color changes, no mosaic in the last 10 epochs |
+| Parameters | 15.8 million, of which 36 thousand in the head | 20.0 million, of which 4.2 million in the head |
+| Confidence threshold | 0.45 | 0.45 |
+| Precision | 0.83 | 0.85 |
+| Recall | 0.70 | 0.78 |
+| F1 score | 0.76 | 0.81 |
 
-![F1 score over confidence threshold and precision-recall curve](mri/evaluation_scores.png)
+Both models rarely give a tumor the wrong type. Their errors are mostly missed tumors, most often glioma, as the confusion matrices show.
 
-![Confusion matrix on the test set](mri/confusion_matrix.png)
+**F1, precision and recall over the confidence threshold, validation set**
 
-Of the 750 tumor boxes in the test set, the own model finds 631 with the right class, gives 8 the wrong class and misses 111. It also makes 61 detections that match no tumor.
+![F1, precision and recall over the confidence threshold and precision-recall curve, own model left and YOLOv5 right](mri/comparison_scores.png)
 
-![Predictions on test samples](mri/test_predictions.jpg)
+**Confusion matrices, test set**
 
-### Ultralytics YOLOv5 on the same data
+![Confusion matrices on the test set, own model left and YOLOv5 right](mri/comparison_confusion_matrices.png)
 
-![F1 score over confidence threshold and precision-recall curve](mri/yolov5_evaluation_scores.png)
+**Predictions on test samples**
 
-![Confusion matrix on the test set](mri/yolov5_confusion_matrix.png)
+![Predictions on the same test samples, own model left and YOLOv5 right](mri/comparison_predictions.jpg)
 
-Of the same 750 tumor boxes, YOLOv5 finds 670 with the right class, gives 6 the wrong class and misses 74. It makes 86 detections that match no tumor.
+### The first scores were too good
 
-![Predictions on test samples](mri/yolov5_test_predictions.jpg)
+An earlier run scored an F1 score of 0.88 for our model and 0.89 for YOLOv5. The cause was both the data set and how the notebook used it. The data set combines overlapping source collections, so a quarter of its images are copies, and neighboring slices of one patient look almost the same. Split image by image, they landed in both training and test: 42% of the test images had an almost identical training image (a similarity of 0.97 or more). Even the data set's own split shares 213 groups of identical files between training and validation.
 
-## Conclusions
+![Under the split by image, test images next to their most similar training image: two exact copies and two neighboring slices](mri/leaked_pairs.jpg)
 
-* **The tumor types are told apart. Finding the tumor is the hard part.** Both models give a tumor the wrong type in about 1 of 100 cases: 8 of 750 for the own model, 6 for YOLOv5. Their errors are tumors that are missed, 111 and 74, and detections where there is no tumor, 61 and 86.
-* **Glioma is missed most.** The own model misses 49 of 201 glioma boxes, against 23 of 248 meningioma and 39 of 301 pituitary. YOLOv5 also misses glioma most often, 30 of 201.
-* **The own model needs a high threshold.** On the validation set its precision falls quickly when the threshold goes below 0.5, to about 0.6 at 0.3 and about 0.4 at 0.1. Its F1 score therefore peaks narrowly at 0.50 and is about 0.75 at 0.30. YOLOv5 keeps a precision of about 0.75 or more from a threshold of 0.05 up, and its F1 score stays close to its best between about 0.1 and 0.6. The own model's threshold has to be tuned with care, while YOLOv5's can be chosen loosely.
-* **YOLOv5 buys recall with precision, and it had a head start.** At their best thresholds the two models end with almost the same F1 score, 0.88 and 0.89. YOLOv5 finds 39 more tumors and makes 23 more false positives, counting detections without a tumor and detections of the wrong type (92 against 69). So its recall is higher and its precision lower. The comparison is not equal. In the Ultralytics versions of the time, `pretrained=False` does not stop a model loaded from `yolov5mu.pt` from keeping its COCO weights, so YOLOv5 started pretrained while the own model started from random weights. YOLOv5 also has 60% more parameters, a head without anchors or objectness, and its own default non-maximum suppression (IoU 0.7, per class). The notebook does not show which of these makes the difference.
+With copies removed and each patient kept in one set (see Data), the scores dropped to 0.76 and 0.81. For YOLOv5 the drop also includes the switch from pretrained to random weights and to a smaller size. The chart shows our model's score over the training runs, and the drop when the leak was closed.
+
+![F1 score of the own model over the training runs in the commit history, labeled with each run's main change](mri/f1_history.png)
+
+## What building it taught me
+
+The goal was to learn how a detector works by writing one. These are the lessons that the code and the runs show.
+
+### The model
+
+* **Which predictions learn a target is a design choice.** During training, each labeled box has to be handed to some of the predictions, which then learn to output it, while all other predictions learn that nothing is there. Here a target goes to the cell of its center and up to two neighboring cells, for each anchor of similar shape, on every grid. This choice shapes what each part of the head learns, and it is why one target gets several almost identical boxes.
+* **The box encoding must be bounded.** The head predicts positions and sizes through a sigmoid. A box center can lie from half a cell left of or above its grid cell up to the cell's right or lower edge, and a box size stays between 1 and about 4.5 times its anchor. The loss also clamps box sizes as a guard against exploding values. The bounds have to fit the way targets are assigned to grid cells, and here they do not everywhere, see Limits.
+* **Anchors are priors taken from the data.** k-means clustering of the box sizes gives nine anchor shapes, three per scale. A target only trains the anchors whose shape is close to its own, so the anchors decide which targets each scale learns to find. Here the clustering placed five of the nine anchors on the Background boxes around whole brains, which are 14% of the boxes, and only four among the tumor boxes.
+
+![Box sizes in the validation set grouped by k-means, and the nine anchors it converged to, drawn on the image](mri/anchors.png)
+
+### Training
+
+* **The three losses need balancing.** The box loss, the objectness loss and the class loss each get their own weight, and the objectness loss is weighted again per scale, highest on the finest grid.
+* **Model size made little difference in the early runs.** In the commit history, growing the model from 1.8 to 7.0 and 15.8 million parameters moved the per-image F1 score on the validation set only from 0.60 to 0.64, with the learning rate, augmentation, loss weights and seed changing along with the size. The later changes to training and data raised the test F1 score from 0.68 to 0.88 at 15.8 million parameters, as the F1 chart under Results shows run by run. The first three runs had no test set yet, so they are scored on the validation set with an older metric. Each point is a single run, and the test set changed with the data.
+
+### Overlapping boxes
+
+* **One target gives many boxes.** Because one target trains several grid cells, anchors and scales, the model answers it with several boxes that almost overlap. Non-maximum suppression keeps the box with the highest objectness, which is the model's own estimate of the best IoU with the target, and removes the others that overlap it with an IoU of more than 0.4. A duplicate that survives counts as a false positive, since the evaluation matches each true box with one prediction only.
+* **Close targets can be suppressed.** The suppression works across classes, so a second, real target that overlaps the first with an IoU of more than 0.4 is removed as if it were a duplicate. Ultralytics suppresses per class, and only above an IoU of 0.7.
+
+![One test image before and after non-maximum suppression: 9 overlapping boxes for one meningioma become 1](mri/nms_before_after.png)
+
+### Evaluation and data
+
+* **Evaluation is a design.** Precision and recall come out of choices I had to make: each true box is matched with at most one prediction, a match needs an IoU of 0.4, a target given the wrong class counts as a false positive but not as a missed target, finding the Background box on an image without a tumor is not scored, and the confidence threshold is the one with the best F1 score on the validation set. Other choices give other numbers for the same predictions.
+* **Confidence is a choice.** The confidence here is the objectness score, which is trained toward how well the box overlaps the target, not a class score. Its threshold has to be tuned with care: the own model's F1 curve has a narrow peak, while YOLOv5, which scores boxes by class, stays close to its best over a wide range of thresholds (see the F1 curves under Results). Whether the kind of score causes this difference is not tested.
+* **Data can leak between splits.** Copies and neighboring slices of one patient in both training and test made the first scores look much better than they were, as shown under Results. A split has to keep together whatever belongs together, here the slices of one patient.
 
 ## Limits
 
-* **Slices of one patient are in both training and test.** The data set has no patient ids, and consecutively numbered images can be neighboring slices of the same scan. The split shuffles single images, so the test set holds slices whose neighbors were trained on, and copies of training images. The test scores are therefore likely higher than they would be for a new patient. The notebook now removes the copies and splits by group.
-* **The comparison with YOLOv5 is not like for like.** Starting weights, size, detection head and non-maximum suppression all differ, as described in the conclusions. The notebook now trains YOLOv5 from scratch, at our model's depth and width.
-* **One run each.** Each model was trained once on one split, so an F1 difference of 0.01 does not show that either model is better.
+* **The grouping is a heuristic.** Without patient ids, groups are found from file numbers and image similarity. Slices of one patient that look less alike can still end up in different sets.
+* **The comparison with YOLOv5 does not isolate a cause.** Detection head, assignment, loss, confidence, non-maximum suppression and training settings all differ at once.
+* **Some assigned cells cannot reach their target.** A target is assigned to the grid cell of its center and to up to two neighboring cells. A target in the left or upper half of its cell is also assigned to the neighbor cell to the left or above. From there its center lies 1 to 1.5 cells away, but the encoding only reaches 1 cell, so that neighbor can never place the box exactly. YOLOv5's range, from -0.5 to 1.5 cells, covers it.
+* **Boxes of non-square images are distorted.** The resize step scales the x coordinates of a box by the height ratio and the y coordinates by the width ratio. For the 13% of images that are not square, every true box is stretched and shifted, both as a training target for our model and as the ground truth both models are scored against. Fixed in the notebook for the next run.
+* **Boxes are not clipped at the right and lower edge.** The clipping writes into a copy of the coordinates, so it has no effect. The distorted boxes therefore stay larger than the image: 23 validation boxes reach past it, which is why the largest anchor is taller than the image. Fixed in the notebook for the next run.
+* **Box sizes cannot shrink below their anchor.** The size encoding allows 1 to about 4.5 times the anchor, while a target down to a quarter of an anchor's size is still assigned to it. Such a target can only be fitted by a larger box.
+* **One run each.** Each model was trained once on one split, so differences of a few hundredths may not repeat with another seed. The earlier runs from the commit history on this page also ran once each, on the old split by image.
+* **Our model is evaluated in training mode.** The notebook never switches our model to evaluation mode, so BatchNorm normalizes each image with the statistics of its batch of 32 validation or test images instead of the statistics learned in training. Its scores and predictions therefore depend on which images share a batch. YOLOv5 is evaluated in evaluation mode. Measured locally with the same weights, evaluation mode changes little: the threshold chosen on the validation set becomes 0.50, and the test F1 score goes from 0.760 to 0.764. Fixed in the notebook for the next run.
 * **Anchors come from the validation set.** The anchor sizes were clustered on the validation boxes, so the validation set, which also picks the threshold, shaped the model a little. The test set was not used for either.
 * **Images without a tumor are not scored.** Precision and recall count tumor boxes only. Whether a model finds the Background box on an image without a tumor does not enter the scores, but a tumor predicted on such an image counts as a false positive.
-
-## Changes for the next run
-
-The notebook was changed after the run whose numbers this page shows. The numbers will be updated after a new Kaggle run. The test scores will likely drop, since the test set no longer holds copies of training images.
-
-* **Copies removed, split by group.** A quarter of the images, 1336, are identical copies of another image, because the data set combines source collections that overlap. They are removed. The rest is grouped: neighboring slices of one scan that look alike, and the same slice found in two source collections, form one group. Whole groups are then split into 2736 training, 588 validation and 587 test images, with the classes balanced. The data set's own validation folder is not used as test set, since it shares copies and neighboring slices with its training folder.
-* **How well the grouping works.** The data set has no patient ids, so the groups are found by comparing small grayscale copies of the images. With a split by image, about 73% of the test images have a training image with a similarity of 0.9 or more, almost the same picture. With the split by group it is 0.2%.
-* **YOLOv5 from scratch, at our model's depth and width.** YOLOv5 is built from its model definition instead of the `yolov5mu.pt` checkpoint, so it starts from random weights like our model. It is scaled to depth 0.33 and width 0.75, the same backbone and neck sizes as our model, which gives 20.0 million parameters against our 15.8 million. The remaining difference is Ultralytics' larger detection head, which has no anchors.
-* **Class chart.** The chart under Data is drawn with the corrected notebook cell. It used to pair the counts with the wrong class names.
 
 ## Next steps
 
