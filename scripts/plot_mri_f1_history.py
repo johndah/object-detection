@@ -31,6 +31,7 @@ runs = [
     ("8aaf83f", "loss decoding fixed, peak learning rate 0.03"),
     ("4fcbb95", "validation folder added"),
     ("21b1624", "copies removed, split by patient group"),
+    ("61ef4bd", "box scaling and clipping fixed, evaluation mode"),
 ]
 
 

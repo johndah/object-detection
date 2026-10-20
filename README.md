@@ -6,7 +6,7 @@ Two object detection projects, each documented as a Kaggle notebook.
 |---|---|---|
 | Goal | Tell which animal passes a camera on a Raspberry Pi 3 | Understand object detection by building a detector from scratch |
 | Model | YOLO26n, fine-tuned | Own model inspired by and compared with Ultralytics YOLOv5 |
-| Test F1 score | 0.87 | 0.76 (own model), 0.81 (YOLOv5) |
+| Test F1 score | 0.87 | 0.83 (own model), 0.83 (YOLOv5) |
 | Summary | [docs/nordic-animal-detection.md](docs/nordic-animal-detection.md) | [docs/mri-detection.md](docs/mri-detection.md) |
 | Notebook | [nordic-animal-detection.ipynb](nordic-animal-detection.ipynb) | [mri-detection.ipynb](mri-detection.ipynb) |
 | Kaggle | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/nordic-animal-detection) | [Open in Kaggle](https://www.kaggle.com/code/johndahlberg/mri-brain-detection) |
@@ -35,7 +35,7 @@ Read the full summary in [docs/nordic-animal-detection.md](docs/nordic-animal-de
 
 The goal is to understand how an object detector works by building one from scratch in PyTorch. Brain tumors on MRI images are the toy problem to learn on: find each tumor, draw a box around it and tell glioma, meningioma and pituitary tumors apart. The model, data augmentation and loss are inspired by Ultralytics YOLOv5 and written from scratch from its building blocks. A YOLOv5 model trained from scratch on the same data, at the same depth and width, serves as the comparison. The focus is on explainable code and visualizations more than on matching the original's performance.
 
-The own model reaches a precision of 0.83 and a recall of 0.70 on the test set, YOLOv5 0.85 and 0.78. Both rarely confuse the tumor types. Their errors are mostly missed tumors, and glioma is missed most often. The own model only does well in a narrow band of confidence thresholds. The data set holds copies of images and neighboring slices of one patient, so copies are removed and the split groups similar slices so that a patient stays in one set, as far as similarity can tell. An earlier split by image let them into both training and test and gave much higher scores, an F1 score of 0.88 instead of 0.76.
+The own model reaches a precision of 0.91 and a recall of 0.76 on the test set, YOLOv5 0.87 and 0.80. Both rarely confuse the tumor types. Their errors are mostly missed tumors, and glioma is missed most often. The own model only does well in a narrow band of confidence thresholds. The data set holds copies of images and neighboring slices of one patient, so copies are removed and the split groups similar slices so that a patient stays in one set, as far as similarity can tell. An earlier split by image let them into both training and test and gave an F1 score of 0.88, which fell to 0.76 once the leak was closed. Fixing how boxes were resized and clipped then raised it to 0.83, the same as YOLOv5.
 
 ![Predictions of the own model on test samples](docs/mri/test_predictions.jpg)
 

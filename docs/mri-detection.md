@@ -55,12 +55,12 @@ $TP$ counts tumors found with the right class, $FP$ detections that match no tum
 | Optimizer | SGD, one-cycle schedule | AdamW with a linearly falling learning rate, chosen automatically by Ultralytics for short runs |
 | Augmentation | mosaic, flips, scaling, shifting and color changes | Ultralytics' own: mosaic, flips, scaling, shifting and color changes, no mosaic in the last 10 epochs |
 | Parameters | 15.8 million, of which 36 thousand in the head | 20.0 million, of which 4.2 million in the head |
-| Confidence threshold | 0.45 | 0.45 |
-| Precision | 0.83 | 0.85 |
-| Recall | 0.70 | 0.78 |
-| F1 score | 0.76 | 0.81 |
+| Confidence threshold | 0.50 | 0.45 |
+| Precision | 0.91 | 0.87 |
+| Recall | 0.76 | 0.80 |
+| F1 score | 0.83 | 0.83 |
 
-Both models rarely give a tumor the wrong type. Their errors are mostly missed tumors, most often glioma, as the confusion matrices show.
+Both models reach the same F1 score, our model with higher precision and YOLOv5 with higher recall. Both rarely give a tumor the wrong type. Their errors are mostly missed tumors, most often glioma, as the confusion matrices show.
 
 **F1, precision and recall over the confidence threshold, validation set**
 
@@ -80,7 +80,7 @@ An earlier run scored an F1 score of 0.88 for our model and 0.89 for YOLOv5. The
 
 ![Under the split by image, test images next to their most similar training image: two exact copies and two neighboring slices](mri/leaked_pairs.jpg)
 
-With copies removed and each patient kept in one set (see Data), the scores dropped to 0.76 and 0.81. For YOLOv5 the drop also includes the switch from pretrained to random weights and to a smaller size. The chart shows our model's score over the training runs, and the drop when the leak was closed.
+With copies removed and each patient kept in one set (see Data), the scores dropped to 0.76 and 0.81. For YOLOv5 the drop also includes the switch from pretrained to random weights and to a smaller size. The last run fixed two bugs in how boxes were resized and clipped, which had distorted the boxes of the 13% of images that are not square, and evaluates our model in evaluation mode. That brought both models to the 0.83 above. Evaluation mode alone changed the earlier model's F1 score by less than 0.01 in a local test, so most of our model's gain likely comes from the corrected boxes. For YOLOv5, which trains from the label files, only the scoring changed. The chart shows our model's score over the training runs: the climb, the drop when the leak was closed and the rise after the fixes.
 
 ![F1 score of the own model over the training runs in the commit history, labeled with each run's main change](mri/f1_history.png)
 
@@ -92,7 +92,7 @@ The goal was to learn how a detector works by writing one. These are the lessons
 
 * **Which predictions learn a target is a design choice.** During training, each labeled box has to be handed to some of the predictions, which then learn to output it, while all other predictions learn that nothing is there. Here a target goes to the cell of its center and up to two neighboring cells, for each anchor of similar shape, on every grid. This choice shapes what each part of the head learns, and it is why one target gets several almost identical boxes.
 * **The box encoding must be bounded.** The head predicts positions and sizes through a sigmoid. A box center can lie from half a cell left of or above its grid cell up to the cell's right or lower edge, and a box size stays between 1 and about 4.5 times its anchor. The loss also clamps box sizes as a guard against exploding values. The bounds have to fit the way targets are assigned to grid cells, and here they do not everywhere, see Limits.
-* **Anchors are priors taken from the data.** k-means clustering of the box sizes gives nine anchor shapes, three per scale. A target only trains the anchors whose shape is close to its own, so the anchors decide which targets each scale learns to find. Here the clustering placed five of the nine anchors on the Background boxes around whole brains, which are 14% of the boxes, and only four among the tumor boxes.
+* **Anchors are priors taken from the data.** k-means clustering of the box sizes gives nine anchor shapes, three per scale. A target only trains the anchors whose shape is close to its own, so the anchors decide which targets each scale learns to find. Here the clustering placed four of the nine anchors on the Background boxes around whole brains, which are 14% of the boxes, and five among the tumor boxes.
 
 ![Box sizes in the validation set grouped by k-means, and the nine anchors it converged to, drawn on the image](mri/anchors.png)
 
@@ -106,7 +106,7 @@ The goal was to learn how a detector works by writing one. These are the lessons
 * **One target gives many boxes.** Because one target trains several grid cells, anchors and scales, the model answers it with several boxes that almost overlap. Non-maximum suppression keeps the box with the highest objectness, which is the model's own estimate of the best IoU with the target, and removes the others that overlap it with an IoU of more than 0.4. A duplicate that survives counts as a false positive, since the evaluation matches each true box with one prediction only.
 * **Close targets can be suppressed.** The suppression works across classes, so a second, real target that overlaps the first with an IoU of more than 0.4 is removed as if it were a duplicate. Ultralytics suppresses per class, and only above an IoU of 0.7.
 
-![One test image before and after non-maximum suppression: 9 overlapping boxes for one meningioma become 1](mri/nms_before_after.png)
+![One test image before and after non-maximum suppression: 14 overlapping boxes for one meningioma become 1](mri/nms_before_after.png)
 
 ### Evaluation and data
 
@@ -119,11 +119,8 @@ The goal was to learn how a detector works by writing one. These are the lessons
 * **The grouping is a heuristic.** Without patient ids, groups are found from file numbers and image similarity. Slices of one patient that look less alike can still end up in different sets.
 * **The comparison with YOLOv5 does not isolate a cause.** Detection head, assignment, loss, confidence, non-maximum suppression and training settings all differ at once.
 * **Some assigned cells cannot reach their target.** A target is assigned to the grid cell of its center and to up to two neighboring cells. A target in the left or upper half of its cell is also assigned to the neighbor cell to the left or above. From there its center lies 1 to 1.5 cells away, but the encoding only reaches 1 cell, so that neighbor can never place the box exactly. YOLOv5's range, from -0.5 to 1.5 cells, covers it.
-* **Boxes of non-square images are distorted.** The resize step scales the x coordinates of a box by the height ratio and the y coordinates by the width ratio. For the 13% of images that are not square, every true box is stretched and shifted, both as a training target for our model and as the ground truth both models are scored against. Fixed in the notebook for the next run.
-* **Boxes are not clipped at the right and lower edge.** The clipping writes into a copy of the coordinates, so it has no effect. The distorted boxes therefore stay larger than the image: 23 validation boxes reach past it, which is why the largest anchor is taller than the image. Fixed in the notebook for the next run.
 * **Box sizes cannot shrink below their anchor.** The size encoding allows 1 to about 4.5 times the anchor, while a target down to a quarter of an anchor's size is still assigned to it. Such a target can only be fitted by a larger box.
 * **One run each.** Each model was trained once on one split, so differences of a few hundredths may not repeat with another seed. The earlier runs from the commit history on this page also ran once each, on the old split by image.
-* **Our model is evaluated in training mode.** The notebook never switches our model to evaluation mode, so BatchNorm normalizes each image with the statistics of its batch of 32 validation or test images instead of the statistics learned in training. Its scores and predictions therefore depend on which images share a batch. YOLOv5 is evaluated in evaluation mode. Measured locally with the same weights, evaluation mode changes little: the threshold chosen on the validation set becomes 0.50, and the test F1 score goes from 0.760 to 0.764. Fixed in the notebook for the next run.
 * **Anchors come from the validation set.** The anchor sizes were clustered on the validation boxes, so the validation set, which also picks the threshold, shaped the model a little. The test set was not used for either.
 * **Images without a tumor are not scored.** Precision and recall count tumor boxes only. Whether a model finds the Background box on an image without a tumor does not enter the scores, but a tumor predicted on such an image counts as a false positive.
 
